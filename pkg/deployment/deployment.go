@@ -2,8 +2,8 @@ package deployment
 
 import (
 	"github.com/pkg/errors"
-	"k8s.io/client-go/1.4/kubernetes"
-	"k8s.io/client-go/1.4/rest"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 // Scale changes the number of app instances
