@@ -4,6 +4,7 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/api/v1"
+	meta_v1 "k8s.io/client-go/pkg/apis/meta/v1"
 	"k8s.io/client-go/pkg/watch"
 	"k8s.io/client-go/rest"
 )
@@ -23,7 +24,7 @@ func Get(epNamespace, epName string) ([]string, error) {
 	}
 
 	addrs := []string{}
-	res, err := clientset.Core().Endpoints(epNamespace).Get(epName)
+	res, err := clientset.Core().Endpoints(epNamespace).Get(epName, meta_v1.GetOptions{})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to retrieve endpoints")
 	}
