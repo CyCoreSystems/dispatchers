@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"k8s.io/client-go/pkg/watch"
+	"k8s.io/client-go/1.5/pkg/watch"
 
 	"github.com/CyCoreSystems/dispatchers/pkg/endpoints"
 	"github.com/CyCoreSystems/dispatchers/pkg/rpcClient"

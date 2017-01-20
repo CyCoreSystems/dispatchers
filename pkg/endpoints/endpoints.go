@@ -2,11 +2,10 @@ package endpoints
 
 import (
 	"github.com/pkg/errors"
-	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/pkg/api/v1"
-	"k8s.io/client-go/rest"
+	"k8s.io/client-go/1.5/kubernetes"
+	"k8s.io/client-go/1.5/pkg/api"
+	"k8s.io/client-go/1.5/pkg/watch"
+	"k8s.io/client-go/1.5/rest"
 )
 
 // Get retrieves the IP addresses for a named endpoint in a given
@@ -24,7 +23,7 @@ func Get(epNamespace, epName string) ([]string, error) {
 	}
 
 	addrs := []string{}
-	res, err := clientset.Core().Endpoints(epNamespace).Get(epName, meta_v1.GetOptions{})
+	res, err := clientset.Core().Endpoints(epNamespace).Get(epName)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to retrieve endpoints")
 	}
@@ -49,6 +48,6 @@ func Watch(epNamespace string) (watch.Interface, error) {
 		return nil, errors.Wrap(err, "failed to construct k8s clientset")
 	}
 
-	w, err := clientset.Core().Endpoints(epNamespace).Watch(v1.ListOptions{Watch: true})
+	w, err := clientset.Core().Endpoints(epNamespace).Watch(api.ListOptions{Watch: true})
 	return w, errors.Wrap(err, "failed to watch endpoints")
 }
