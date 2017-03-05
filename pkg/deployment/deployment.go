@@ -1,31 +1,24 @@
 package deployment
 
 import (
+	"github.com/ericchiang/k8s"
 	"github.com/pkg/errors"
-	"k8s.io/client-go/1.5/kubernetes"
-	"k8s.io/client-go/1.5/rest"
 )
 
 // Scale changes the number of app instances
-func Scale(app string, n *int32) error {
-	config, err := rest.InClusterConfig()
+func Scale(namespace string, app string, n *int32) error {
+	c, err := k8s.NewInClusterClient()
 	if err != nil {
-		return errors.Wrap(err, "failed to get cluster configuration")
+		return nil, errors.Wrap(err, "failed to get k8s client")
 	}
 
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return errors.Wrap(err, "failed to construct k8s clientset")
-	}
-
-	d, err := clientset.Extensions().Deployments("default").Get(app)
+	d, err := c.ExtensionsV1Beta1().GetDeployment(ctx, app, namespace)
 	if err != nil {
 		return errors.Wrap(err, "failed to get deployment")
 	}
 
 	d.Spec.Replicas = n
 
-	_, err = clientset.Extensions().Deployments("default").Update(d)
+	_, err = c.ExtensionsV1Beta1().UpdateDeployment(ctx, d)
 	return errors.Wrap(err, "failed to scale deployment")
-
 }

@@ -1,53 +1,66 @@
 package endpoints
 
 import (
+	"context"
+
+	"github.com/ericchiang/k8s"
 	"github.com/pkg/errors"
-	"k8s.io/client-go/1.5/kubernetes"
-	"k8s.io/client-go/1.5/pkg/api"
-	"k8s.io/client-go/1.5/pkg/watch"
-	"k8s.io/client-go/1.5/rest"
 )
 
 // Get retrieves the IP addresses for a named endpoint in a given
 // namespace.  If the namespace is empty, the `default` namespace
 // will be used.
-func Get(epNamespace, epName string) ([]string, error) {
-	config, err := rest.InClusterConfig()
+func Get(ctx context.Context, epNamespace, epName string) ([]string, error) {
+	c, err := k8s.NewInClusterClient()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get cluster configuration")
+		return nil, errors.Wrap(err, "failed to get k8s client")
 	}
 
-	clientset, err := kubernetes.NewForConfig(config)
+	ret, err := c.CoreV1().GetEndpoints(ctx, epName, epNamespace)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to construct k8s clientset")
+		return nil, errors.Wrap(err, "failed to get list of endpoints")
 	}
 
 	addrs := []string{}
-	res, err := clientset.Core().Endpoints(epNamespace).Get(epName)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to retrieve endpoints")
-	}
-	for _, ep := range res.Subsets {
+	for _, ep := range ret.GetSubsets() {
 		for _, addr := range ep.Addresses {
-			addrs = append(addrs, addr.IP)
+			addrs = append(addrs, *addr.Ip)
 		}
 	}
 	return addrs, nil
 }
 
-// Watch returns a watch interface to listen for changes of endpoints
-// in a namespace
-func Watch(epNamespace string) (watch.Interface, error) {
-	config, err := rest.InClusterConfig()
+// Watch watches a namespace and returns a nil error on the provided channel
+// when a change occurs.  If an error occurs, the error will be sent down the
+// channel and the watch will terminate.
+func Watch(ctx context.Context, changes chan error, namespace string) {
+	c, err := k8s.NewInClusterClient()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get cluster configuration")
+		changes <- errors.Wrap(err, "failed to connect to k8s")
+		return
 	}
 
-	clientset, err := kubernetes.NewForConfig(config)
+	w, err := c.CoreV1().WatchEndpoints(ctx, namespace)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to construct k8s clientset")
+		changes <- errors.Wrap(err, "failed to watch namespace")
+		return
 	}
+	defer w.Close()
 
-	w, err := clientset.Core().Endpoints(epNamespace).Watch(api.ListOptions{Watch: true})
-	return w, errors.Wrap(err, "failed to watch endpoints")
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+
+		ev, _, err := w.Next()
+		if err != nil {
+			changes <- errors.Wrap(err, "watch error")
+			return
+		}
+		if *ev.Type == k8s.EventError {
+			changes <- errors.Wrap(err, "watch error received")
+			return
+		}
+		changes <- nil
+	}
 }

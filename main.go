@@ -8,8 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"k8s.io/client-go/1.5/pkg/watch"
-
 	"github.com/CyCoreSystems/dispatchers/pkg/endpoints"
 	"github.com/CyCoreSystems/dispatchers/pkg/rpcClient"
 	"github.com/CyCoreSystems/dispatchers/pkg/sets"
@@ -88,11 +86,14 @@ func (a *KubeSetArgs) Set(raw string) error {
 }
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	var failureCount int
 	flag.Parse()
 
 	for _, v := range ds {
-		_, err := v.Update()
+		_, err := v.Update(ctx)
 		if err != nil {
 			fmt.Println("Failed to update dispatcher set", v.ID(), err)
 		}
@@ -108,7 +109,7 @@ func main() {
 	}
 
 	for failureCount < 10 {
-		err := maintain()
+		err := maintain(ctx)
 		if err != nil {
 			fmt.Println("Error: ", err)
 			failureCount++
@@ -116,8 +117,8 @@ func main() {
 	}
 }
 
-func maintain() error {
-	ctx, cancel := context.WithCancel(context.Background())
+func maintain(ctx context.Context) error {
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	changes := make(chan error, 10)
@@ -130,7 +131,7 @@ func maintain() error {
 			continue
 		}
 		nsList[ks.EndpointNamespace] = ks.EndpointNamespace
-		go watchNamespace(ctx, changes, ks.EndpointNamespace)
+		go endpoints.Watch(ctx, changes, ks.EndpointNamespace)
 	}
 
 	for {
@@ -142,7 +143,7 @@ func maintain() error {
 		// Update and check if the changes were significant
 		var changed bool
 		for _, v := range ds {
-			diff, err := v.Update()
+			diff, err := v.Update(ctx)
 			if err != nil {
 				return errors.Wrap(err, "error updating set")
 			}
@@ -161,28 +162,6 @@ func maintain() error {
 			if err != nil {
 				return errors.Wrap(err, "failed to notify kamailio of update")
 			}
-		}
-	}
-}
-
-func watchNamespace(ctx context.Context, changes chan error, ns string) {
-	w, err := endpoints.Watch(ns)
-	if err != nil {
-		changes <- errors.Wrap(err, "failed to watch namespace")
-		return
-	}
-	defer w.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case ev := <-w.ResultChan():
-			if ev.Type == watch.Error {
-				changes <- errors.Wrap(err, "watch error")
-				return
-			}
-			changes <- nil
 		}
 	}
 }

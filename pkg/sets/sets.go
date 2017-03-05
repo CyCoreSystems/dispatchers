@@ -1,6 +1,7 @@
 package sets
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/CyCoreSystems/dispatchers/pkg/endpoints"
@@ -10,7 +11,7 @@ import (
 type DispatcherSet interface {
 	ID() int
 	String() string
-	Update() (bool, error)
+	Update(ctx context.Context) (bool, error)
 }
 
 // KubernetesSet represents a dispatcher set whose
@@ -45,8 +46,8 @@ func (s *KubernetesSet) String() (ret string) {
 }
 
 // Update updates the list of proxies
-func (s *KubernetesSet) Update() (changed bool, err error) {
-	list, err := endpoints.Get(s.EndpointNamespace, s.EndpointName)
+func (s *KubernetesSet) Update(ctx context.Context) (changed bool, err error) {
+	list, err := endpoints.Get(ctx, s.EndpointNamespace, s.EndpointName)
 	if err != nil {
 		return
 	}
