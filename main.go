@@ -90,6 +90,10 @@ func (s *SetDefinition) Set(raw string) (err error) {
 	var name string
 	var port = "5060"
 
+	if os.Getenv("POD_NAMESPACE") != "" {
+		ns = os.Getenv("POD_NAMESPACE")
+	}
+
 	pieces := strings.SplitN(raw, "=", 2)
 	if len(pieces) < 2 {
 		return fmt.Errorf("failed to parse %s as the form [namespace:]name=index", raw)

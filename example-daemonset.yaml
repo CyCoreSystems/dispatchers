@@ -1,0 +1,39 @@
+piVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kamailio
+  namespace: sip
+  labels:
+    component: kamailio
+spec:
+  selector:
+    matchLabels:
+      component: kamailio
+  template:
+    metadata:
+      name: kamailio
+      labels:
+        component: kamailio
+    spec:
+      nodeSelector:
+        cloud.google.com/gke-nodepool: pool-kamailio
+      hostNetwork: true
+      volumes:
+        - name: config
+      containers:
+        - name: kamailio
+          image: cycoresystems/astricon-2016-kamailio:gce
+          volumeMounts:
+            - name: config
+              mountPath: /data/kamailio
+        - name: rtpproxy
+          image: cycoresystems/astricon-2016-rtpproxy:gce
+        - name: dispatchers
+          image: cycoresystems/dispatchers
+          command:
+            - /app
+            - "-set"
+            - default:asterisk=1
+          volumeMounts:
+            - name: config
+              mountPath: /data/kamailio

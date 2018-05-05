@@ -8,6 +8,51 @@ set ID which may be used in kamailio route scripts.
 When the `dispatchers.list` file is updated, the tool connects to kamailio over
 its binrpc service and tells it to reload the file.
 
+## Usage
+
+In general, `dispatchers` is meant to run as a container within the same Pod as
+the kamailio container.
+
+Here is an example kamailio Pod definition with a `disaptchers` container which
+will populate dispatcher set 1 using the Endpoints from the `asterisk` service
+in the same namespace as the kamailio Pod:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kamailio
+spec:
+  volumes:
+    - name: config
+  containers:
+    - name: kamailio
+      image: cycoresystems/asterison-2016-kamailio
+      volumeMounts:
+        - name: config
+          mountPath: /data/kamailio
+    - name: dispatchers
+      image: cycoresystems/dispatchers
+      env:
+         - name: POD_NAMESPACE
+           valueFrom:
+             fieldRef:
+               fieldPath: metadata.namespace
+      command:
+        - /app
+        - "-set"
+        - asterisk=1
+      volumeMounts:
+        - name: config
+          mountPath: /data/kamailio
+```
+
+The image may also be pulled directly:
+
+```
+  docker pull cycoresystems/dispatchers
+```
+
 ## Options
 
 Command-line options are available to customize and configure the operation of
@@ -21,8 +66,13 @@ Command-line options are available to customize and configure the operation of
     service.  It defaults to `9998`.
   * `-set [namespace:]<service-name>=<index>[:port]`- Specifies a dispatcher set.  This
     may be passed multiple times for multiple dispatcher sets.  Namespace and
-    port are optional.  If not specified, namespace is `default` and port is
+    port are optional.  If not specified, namespace is `default` or the value of
+    `POD_NAMESPACE` and port is
     `5060`.
+
+For simple systems where the monitored services are in the same namespace as
+`dispatchers`, you can set the `POD_NAMESPACE` environment variable to
+automatically use the same namespace in which `dispatcher` runs.
 
 
 ## RBAC
