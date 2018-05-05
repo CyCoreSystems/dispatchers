@@ -6,7 +6,7 @@ install:
    - go get -u github.com/alecthomas/gometalinter/...
    - go get -u github.com/goreleaser/goreleaser
    - gometalinter --install
-script: make ci
+script: bash ci_check.sh
 services:
    - docker
 deploy:
