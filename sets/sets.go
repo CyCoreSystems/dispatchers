@@ -38,9 +38,7 @@ type staticSet struct {
 	Members []string
 }
 
-func (s *staticSet) Close() {
-	return
-}
+func (s *staticSet) Close() {}
 
 func (s *staticSet) ID() int {
 	return s.id

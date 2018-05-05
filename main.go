@@ -155,7 +155,7 @@ func (s *dispatcherSets) export() error {
 	if err != nil {
 		return errors.Wrap(err, "failed to open dispatchers file for writing")
 	}
-	defer f.Close()
+	defer f.Close() // nolint: errcheck
 
 	for _, v := range s.sets {
 		_, err = f.WriteString(v.Export())

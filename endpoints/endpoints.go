@@ -40,7 +40,7 @@ func Watch(ctx context.Context, c *k8s.Client, changes chan error, namespace str
 		changes <- errors.Wrap(err, "failed to watch namespace")
 		return errors.Wrap(err, "failed to watch namespace")
 	}
-	defer w.Close()
+	defer w.Close() // nolint: errcheck
 
 	for ctx.Err() == nil {
 		ep := new(corev1.Endpoints)

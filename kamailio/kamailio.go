@@ -31,7 +31,7 @@ func newClientCodec(conn io.ReadWriteCloser) *binRPCClientCodec {
 func InvokeMethod(method string, host string, port string) error {
 
 	conn, err := net.Dial("udp", host+":"+port)
-	defer conn.Close()
+	defer conn.Close() // nolint
 
 	if err != nil {
 		return errors.Wrap(err, "failed to connect to kamailio RPC server")
