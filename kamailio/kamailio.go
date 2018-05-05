@@ -1,4 +1,4 @@
-package rpcClient
+package kamailio
 
 import (
 	"io"
