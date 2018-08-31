@@ -294,7 +294,7 @@ func connect() (*k8s.Client, error) {
 		return k8s.NewInClusterClient()
 	}
 
-	data, err := ioutil.ReadFile(kubeCfg)
+	data, err := ioutil.ReadFile(kubeCfg) // nolint: gosec
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to read kubecfg")
 	}
