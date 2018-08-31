@@ -1,6 +1,7 @@
 project_name: Kamailio Dispatchers Manager
 builds:
-   - env:
+   - binary: dispatchers
+     env:
         - CGO_ENABLED=0
      goos:
         - windows
