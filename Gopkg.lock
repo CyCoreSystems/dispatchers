@@ -10,7 +10,7 @@
   version = "v0.1.0"
 
 [[projects]]
-  digest = "1:5c06cf8eafac3f09b75782cbe33fde8e9019b5aa7475214b2b06a0e35d59f73d"
+  digest = "1:68b057539f657c23d72f1a899371bcadbc3c5d787c3f88172193ee21cb0c75e4"
   name = "github.com/ericchiang/k8s"
   packages = [
     ".",
@@ -36,7 +36,7 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:b1d3041d568e065ab4d76f7477844458e9209c0bb241eaccdc0770bf0a13b120"
+  digest = "1:f958a1c137db276e52f0b50efee41a1a389dcdded59a69711f3e872757dab34b"
   name = "github.com/golang/protobuf"
   packages = ["proto"]
   pruneopts = ""
@@ -53,7 +53,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:3a1726ebc5fdc21068c99f86641590dd72e4c0634a68433ba59de9ba6d5fce0d"
+  digest = "1:b03aa98aca70c77c167d79a5223443d4faba32fd933efe94d3d58c9a30738159"
   name = "golang.org/x/net"
   packages = [
     "http/httpguts",
@@ -66,7 +66,7 @@
   revision = "640f4622ab692b87c2f3a94265e6f579fe38263d"
 
 [[projects]]
-  digest = "1:af9bfca4298ef7502c52b1459df274eed401a4f5498b900e9a92d28d3d87ac5a"
+  digest = "1:5acd3512b047305d49e8763eef7ba423901e85d5dd2fd1e71778a0ea8de10bd4"
   name = "golang.org/x/text"
   packages = [
     "collate",
