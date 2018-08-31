@@ -4,12 +4,15 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/signal"
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/CyCoreSystems/dispatchers/kamailio"
 	"github.com/CyCoreSystems/dispatchers/sets"
@@ -22,6 +25,9 @@ import (
 var outputFilename string
 var rpcPort string
 var kubeCfg string
+
+var maxShortDeaths = 10
+var minRuntime = time.Minute
 
 func init() {
 	flag.Var(&setDefinitions, "set", "Dispatcher sets of the form [namespace:]name=index[:port], where index is a number and port is the port number on which SIP is to be signaled to the dispatchers.  May be passed multiple times for multiple sets.")
@@ -221,6 +227,26 @@ func (s *dispatcherSets) notify() error {
 }
 
 func main() {
+	flag.Parse()
+
+	var shortDeaths int
+	for shortDeaths < maxShortDeaths {
+		t := time.Now()
+
+		if err := run(); err != nil {
+			log.Println("run died:", err)
+		}
+
+		if time.Since(t) < minRuntime {
+			shortDeaths++
+		}
+	}
+
+	log.Println("too many short-term deaths")
+	os.Exit(1)
+}
+
+func run() error {
 	ctx, cancel := newStopContext()
 	defer cancel()
 
@@ -240,28 +266,27 @@ func main() {
 
 	for _, v := range setDefinitions.list {
 		if err = s.add(ctx, v); err != nil {
-			fmt.Println("failed to add dispatcher set:", err.Error())
-			os.Exit(1)
+			return errors.Wrap(err, "failed to add dispatcher set")
 		}
 
 	}
 
 	if err = s.update(ctx); err != nil {
-		fmt.Println("failed to run initial dispatcher set update:", err.Error())
-		os.Exit(1)
+		return errors.Wrap(err, "failed to run initial dispatcher set update")
 	}
 
 	if err = s.export(); err != nil {
-		fmt.Println("failed to run initial dispatcher set export:", err.Error())
-		os.Exit(1)
+		return errors.Wrap(err, "failed to run initial dispatcher set export")
 	}
 
 	if err = s.maintain(ctx); err != nil {
-		fmt.Println("failed to maintain dispatcher sets:", err.Error())
-		os.Exit(1)
+		if err == io.EOF {
+			return nil
+		}
+		return errors.Wrap(err, "failed to maintain dispatcher sets")
 	}
 
-	os.Exit(0)
+	return nil
 }
 
 func connect() (*k8s.Client, error) {
