@@ -24,6 +24,7 @@ import (
 
 var outputFilename string
 var rpcPort string
+var rpcHost string
 var kubeCfg string
 
 var maxShortDeaths = 10
@@ -32,6 +33,7 @@ var minRuntime = time.Minute
 func init() {
 	flag.Var(&setDefinitions, "set", "Dispatcher sets of the form [namespace:]name=index[:port], where index is a number and port is the port number on which SIP is to be signaled to the dispatchers.  May be passed multiple times for multiple sets.")
 	flag.StringVar(&outputFilename, "o", "/data/kamailio/dispatcher.list", "Output file for dispatcher list")
+	flag.StringVar(&rpcHost, "h", "128.0.0.1", "Host for kamailio's RPC service")
 	flag.StringVar(&rpcPort, "p", "9998", "Port for kamailio's RPC service")
 	flag.StringVar(&kubeCfg, "kubecfg", "", "Location of kubecfg file (if not running inside k8s)")
 }
@@ -135,6 +137,7 @@ func (s *SetDefinition) Set(raw string) (err error) {
 type dispatcherSets struct {
 	kc             *k8s.Client
 	outputFilename string
+	rpcHost        string
 	rpcPort        string
 
 	sets map[int]sets.DispatcherSet
@@ -205,6 +208,10 @@ func (s *dispatcherSets) maintain(ctx context.Context) error {
 
 	for ctx.Err() == nil {
 		err := <-changes
+		if err == io.EOF {
+			log.Println("kubernetes API connection terminated:", err)
+			return nil
+		}
 		if err != nil {
 			return errors.Wrap(err, "error maintaining sets")
 		}
@@ -223,7 +230,7 @@ func (s *dispatcherSets) maintain(ctx context.Context) error {
 
 // notify signals to kamailio to reload its dispatcher list
 func (s *dispatcherSets) notify() error {
-	return kamailio.InvokeMethod("dispatcher.reload", "127.0.0.1", s.rpcPort)
+	return kamailio.InvokeMethod("dispatcher.reload", s.rpcHost, s.rpcPort)
 }
 
 func main() {
@@ -261,6 +268,7 @@ func run() error {
 	var s = &dispatcherSets{
 		kc:             kc,
 		outputFilename: outputFilename,
+		rpcHost:        rpcHost,
 		rpcPort:        rpcPort,
 	}
 
@@ -280,9 +288,6 @@ func run() error {
 	}
 
 	if err = s.maintain(ctx); err != nil {
-		if err == io.EOF {
-			return nil
-		}
 		return errors.Wrap(err, "failed to maintain dispatcher sets")
 	}
 
