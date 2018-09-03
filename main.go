@@ -287,6 +287,10 @@ func run() error {
 		return errors.Wrap(err, "failed to run initial dispatcher set export")
 	}
 
+	if err = s.notify(); err != nil {
+		log.Println("NOTICE: failed to notify kamailio after initial dispatcher export; kamailio may not be up yet:", err)
+	}
+
 	if err = s.maintain(ctx); err != nil {
 		return errors.Wrap(err, "failed to maintain dispatcher sets")
 	}
