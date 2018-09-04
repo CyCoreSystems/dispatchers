@@ -30,6 +30,17 @@ var kubeCfg string
 var maxShortDeaths = 10
 var minRuntime = time.Minute
 
+// KamailioStartupDebounceTimer is the amount of time to wait on startup to
+// send an additional notify to kamailio.
+//
+// NOTE:  because we are notifying kamailio via UDP, we have no way of knowing
+// if it actually received the notification.  This debounce timer is a hack to
+// send a subsequent notification after kamailio should have had time to start.
+// Ideally, we should instead query kamailio to validate the dispatcher list.
+// However, our binrpc implementation does not yet support _reading_ from
+// binrpc.
+const KamailioStartupDebounceTimer = time.Minute
+
 func init() {
 	flag.Var(&setDefinitions, "set", "Dispatcher sets of the form [namespace:]name=index[:port], where index is a number and port is the port number on which SIP is to be signaled to the dispatchers.  May be passed multiple times for multiple sets.")
 	flag.StringVar(&outputFilename, "o", "/data/kamailio/dispatcher.list", "Output file for dispatcher list")
@@ -276,7 +287,6 @@ func run() error {
 		if err = s.add(ctx, v); err != nil {
 			return errors.Wrap(err, "failed to add dispatcher set")
 		}
-
 	}
 
 	if err = s.update(ctx); err != nil {
@@ -290,6 +300,13 @@ func run() error {
 	if err = s.notify(); err != nil {
 		log.Println("NOTICE: failed to notify kamailio after initial dispatcher export; kamailio may not be up yet:", err)
 	}
+
+	// FIXME: quick hack to work around race condition where kamailio is not up before the notify is run.  Since binrpc is over UDP and returns no data, we have no idea whether the kamailio instance is actually up and receiving the notification.  Therefore, we send a notify again a little later, for good measure.
+	time.AfterFunc(KamailioStartupDebounceTimer, func() {
+		if err = s.notify(); err != nil {
+			log.Println("follow-up kamailio notification failed:", err)
+		}
+	})
 
 	if err = s.maintain(ctx); err != nil {
 		return errors.Wrap(err, "failed to maintain dispatcher sets")
