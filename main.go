@@ -44,7 +44,7 @@ const KamailioStartupDebounceTimer = time.Minute
 func init() {
 	flag.Var(&setDefinitions, "set", "Dispatcher sets of the form [namespace:]name=index[:port], where index is a number and port is the port number on which SIP is to be signaled to the dispatchers.  May be passed multiple times for multiple sets.")
 	flag.StringVar(&outputFilename, "o", "/data/kamailio/dispatcher.list", "Output file for dispatcher list")
-	flag.StringVar(&rpcHost, "h", "128.0.0.1", "Host for kamailio's RPC service")
+	flag.StringVar(&rpcHost, "h", "127.0.0.1", "Host for kamailio's RPC service")
 	flag.StringVar(&rpcPort, "p", "9998", "Port for kamailio's RPC service")
 	flag.StringVar(&kubeCfg, "kubecfg", "", "Location of kubecfg file (if not running inside k8s)")
 }
@@ -301,7 +301,11 @@ func run() error {
 		log.Println("NOTICE: failed to notify kamailio after initial dispatcher export; kamailio may not be up yet:", err)
 	}
 
-	// FIXME: quick hack to work around race condition where kamailio is not up before the notify is run.  Since binrpc is over UDP and returns no data, we have no idea whether the kamailio instance is actually up and receiving the notification.  Therefore, we send a notify again a little later, for good measure.
+	// FIXME: quick hack to work around race condition where kamailio is not up
+	// before the notify is run.  Since binrpc is over UDP and returns no data,
+	// we have no idea whether the kamailio instance is actually up and
+	// receiving the notification.  Therefore, we send a notify again a little
+	// later, for good measure.
 	time.AfterFunc(KamailioStartupDebounceTimer, func() {
 		if err = s.notify(); err != nil {
 			log.Println("follow-up kamailio notification failed:", err)
