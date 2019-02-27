@@ -312,10 +312,15 @@ func run() error {
 		}
 	})
 
-	if err = s.maintain(ctx); err != nil {
-		return errors.Wrap(err, "failed to maintain dispatcher sets")
+	for ctx.Err() == nil {
+		err = s.maintain(ctx)
+		if errors.Cause(err) == io.EOF {
+			continue
+		}
+		if err != nil {
+			return errors.Wrap(err, "failed to maintain dispatcher sets")
+		}
 	}
-
 	return nil
 }
 
