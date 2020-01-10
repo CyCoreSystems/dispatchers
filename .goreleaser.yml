@@ -22,9 +22,8 @@ changelog:
        - '^docs:'
        - '^test:'
 dockers:
-   - image: cycoresystems/dispatchers
-     tag_templates:
-        - "{{ .Tag }}"
-        - "v{{ .Major }}"
-        - "v{{ .Major }}.{{ .Minor }}"
-        - latest
+   - image_templates:
+       - "cycoresystems/dispatchers:{{ .Tag }}"
+       - "cycoresystems/dispatchers:v{{ .Major }}"
+       - "cycoresystems/dispatchers:v{{ .Major }}.{{ .Minor }}"
+       - cycoresystems/dispatchers:latest

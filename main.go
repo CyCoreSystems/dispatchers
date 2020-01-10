@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
@@ -14,8 +15,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/CyCoreSystems/dispatchers/kamailio"
 	"github.com/CyCoreSystems/dispatchers/sets"
+	"github.com/CyCoreSystems/go-kamailio/binrpc"
 	"github.com/ericchiang/k8s"
 	"github.com/ghodss/yaml"
 
@@ -29,6 +30,8 @@ var kubeCfg string
 
 var maxShortDeaths = 10
 var minRuntime = time.Minute
+
+var apiAddr string
 
 // KamailioStartupDebounceTimer is the amount of time to wait on startup to
 // send an additional notify to kamailio.
@@ -47,6 +50,7 @@ func init() {
 	flag.StringVar(&rpcHost, "h", "127.0.0.1", "Host for kamailio's RPC service")
 	flag.StringVar(&rpcPort, "p", "9998", "Port for kamailio's RPC service")
 	flag.StringVar(&kubeCfg, "kubecfg", "", "Location of kubecfg file (if not running inside k8s)")
+	flag.StringVar(&apiAddr, "api", "", "Address on which to run web API service.  Example ':8080'. (defaults to not run)")
 }
 
 // SetDefinition describes a kubernetes dispatcher set's parameters
@@ -92,7 +96,6 @@ func (s *SetDefinition) String() string {
 
 // Set configures a kubernetes-derived dispatcher set
 func (s *SetDefinition) Set(raw string) (err error) {
-
 	// Handle multiple comma-delimited arguments
 	if strings.Contains(raw, ",") {
 		args := strings.Split(raw, ",")
@@ -105,9 +108,9 @@ func (s *SetDefinition) Set(raw string) (err error) {
 	}
 
 	var id int
-	var ns = "default"
+	ns := "default"
 	var name string
-	var port = "5060"
+	port := "5060"
 
 	if os.Getenv("POD_NAMESPACE") != "" {
 		ns = os.Getenv("POD_NAMESPACE")
@@ -118,7 +121,7 @@ func (s *SetDefinition) Set(raw string) (err error) {
 		return fmt.Errorf("failed to parse %s as the form [namespace:]name=index", raw)
 	}
 
-	var naming = strings.SplitN(pieces[0], ":", 2)
+	naming := strings.SplitN(pieces[0], ":", 2)
 	if len(naming) < 2 {
 		name = naming[0]
 	} else {
@@ -126,7 +129,7 @@ func (s *SetDefinition) Set(raw string) (err error) {
 		name = naming[1]
 	}
 
-	var idString = pieces[1]
+	idString := pieces[1]
 	if pieces = strings.Split(pieces[1], ":"); len(pieces) > 1 {
 		idString = pieces[0]
 		port = pieces[1]
@@ -156,7 +159,6 @@ type dispatcherSets struct {
 
 // add creates a dispatcher set from a k8s set definition
 func (s *dispatcherSets) add(ctx context.Context, args *SetDefinition) error {
-
 	ds, err := sets.NewKubernetesSet(ctx, s.kc, args.id, args.namespace, args.name, args.port)
 	if err != nil {
 		return errors.Wrap(err, "failed to create kubernetes-based dispatcher set")
@@ -174,7 +176,6 @@ func (s *dispatcherSets) add(ctx context.Context, args *SetDefinition) error {
 
 // export dumps the output from all dispatcher sets
 func (s *dispatcherSets) export() error {
-
 	f, err := os.Create(s.outputFilename)
 	if err != nil {
 		return errors.Wrap(err, "failed to open dispatchers file for writing")
@@ -239,9 +240,47 @@ func (s *dispatcherSets) maintain(ctx context.Context) error {
 	return ctx.Err()
 }
 
+// ServeHTTP offers a web service by which clients may validate membership of an IP address within a dispatcher set
+func (s *dispatcherSets) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Handle requests for /check/<setID>/<ip address> to validate membership of an IP to a dispatcher set
+	if strings.HasPrefix(r.URL.Path, "/check/") {
+		pieces := strings.Split(r.URL.Path, "/")
+		if len(pieces) != 3 {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		setID, err := strconv.Atoi(pieces[1])
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if s.validateSetMember(setID, pieces[2]) {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	w.WriteHeader(http.StatusNotFound)
+}
+
+func (s *dispatcherSets) validateSetMember(id int, addr string) bool {
+	selectedSet, ok := s.sets[id]
+	if !ok {
+		return false
+	}
+	for _, ref := range selectedSet.Hosts() {
+		if ref == addr {
+			return true
+		}
+	}
+	return false
+}
+
 // notify signals to kamailio to reload its dispatcher list
 func (s *dispatcherSets) notify() error {
-	return kamailio.InvokeMethod("dispatcher.reload", s.rpcHost, s.rpcPort)
+	return binrpc.InvokeMethod("dispatcher.reload", s.rpcHost, s.rpcPort)
 }
 
 func main() {
@@ -276,7 +315,7 @@ func run() error {
 		os.Exit(1)
 	}
 
-	var s = &dispatcherSets{
+	s := &dispatcherSets{
 		kc:             kc,
 		outputFilename: outputFilename,
 		rpcHost:        rpcHost,
@@ -311,6 +350,22 @@ func run() error {
 			log.Println("follow-up kamailio notification failed:", err)
 		}
 	})
+
+	// Run a web service to offer IP checks for each member of the dispatcher set
+	if apiAddr != "" {
+		var srv http.Server
+		go func() {
+			<-ctx.Done()
+			if err := srv.Shutdown(ctx); err != nil {
+				log.Fatalln("failed to shut down HTTP server:", err)
+			}
+		}()
+		go func() {
+			if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+				log.Fatalln("failed to start HTTP server:", err)
+			}
+		}()
+	}
 
 	for ctx.Err() == nil {
 		err = s.maintain(ctx)

@@ -22,6 +22,9 @@ type DispatcherSet interface {
 	// ID returns the dispatcher set ID
 	ID() int
 
+	// Hosts returns the set addresses of the members of the dispatcher set
+	Hosts() []string
+
 	// Export dumps the dispatcher set
 	Export() string
 
@@ -44,8 +47,12 @@ func (s *staticSet) ID() int {
 	return s.id
 }
 
+func (s *staticSet) Hosts() []string {
+	return s.Members
+}
+
 func (s *staticSet) Export() string {
-	var ret = fmt.Sprintf("# Dispatcher set %d\n", s.id)
+	ret := fmt.Sprintf("# Dispatcher set %d\n", s.id)
 
 	for _, m := range s.Members {
 		ret += fmt.Sprintf("%d sip:%s", s.id, m)
@@ -144,8 +151,12 @@ func (s *kubernetesSet) ID() int {
 	return s.id
 }
 
+func (s *kubernetesSet) Hosts() []string {
+	return s.members
+}
+
 func (s *kubernetesSet) Export() string {
-	var ret = fmt.Sprintf("# Dispatcher set %d\n", s.id)
+	ret := fmt.Sprintf("# Dispatcher set %d\n", s.id)
 
 	for _, m := range s.members {
 		ret += fmt.Sprintf("%d sip:%s:%s\n", s.id, m, s.port)
@@ -170,7 +181,6 @@ func (s *kubernetesSet) Update(ctx context.Context) (changed bool, err error) {
 }
 
 func (s *kubernetesSet) Watch(ctx context.Context) (string, error) {
-
 	for ctx.Err() == nil {
 		select {
 		case err := <-s.changes:
