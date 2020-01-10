@@ -244,17 +244,17 @@ func (s *dispatcherSets) maintain(ctx context.Context) error {
 func (s *dispatcherSets) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Handle requests for /check/<setID>/<ip address> to validate membership of an IP to a dispatcher set
 	if strings.HasPrefix(r.URL.Path, "/check/") {
-		pieces := strings.Split(r.URL.Path, "/")
-		if len(pieces) != 3 {
+		pieces := strings.Split(strings.TrimPrefix(r.URL.Path, "/check/"), "/")
+		if len(pieces) != 2 {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		setID, err := strconv.Atoi(pieces[1])
+		setID, err := strconv.Atoi(pieces[0])
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		if s.validateSetMember(setID, pieces[2]) {
+		if s.validateSetMember(setID, pieces[1]) {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
@@ -355,6 +355,7 @@ func run() error {
 	if apiAddr != "" {
 		var srv http.Server
 		srv.Addr = apiAddr
+		srv.Handler = s
 
 		go func() {
 			<-ctx.Done()
