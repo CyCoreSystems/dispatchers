@@ -354,6 +354,8 @@ func run() error {
 	// Run a web service to offer IP checks for each member of the dispatcher set
 	if apiAddr != "" {
 		var srv http.Server
+		srv.Addr = apiAddr
+
 		go func() {
 			<-ctx.Done()
 			if err := srv.Shutdown(ctx); err != nil {
