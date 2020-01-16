@@ -46,106 +46,12 @@ const KamailioStartupDebounceTimer = time.Minute
 
 func init() {
 	flag.Var(&setDefinitions, "set", "Dispatcher sets of the form [namespace:]name=index[:port], where index is a number and port is the port number on which SIP is to be signaled to the dispatchers.  May be passed multiple times for multiple sets.")
+	flag.Var(&staticSetDefinitions, "static", "Static dispatcher sets of the form index=host[:port][,host[:port]]..., where index is the dispatcher set number/index and port is the port number on which SIP is to be signaled to the dispatchers.  Multiple hosts may be defined using a comma-separated list.")
 	flag.StringVar(&outputFilename, "o", "/data/kamailio/dispatcher.list", "Output file for dispatcher list")
 	flag.StringVar(&rpcHost, "h", "127.0.0.1", "Host for kamailio's RPC service")
 	flag.StringVar(&rpcPort, "p", "9998", "Port for kamailio's RPC service")
 	flag.StringVar(&kubeCfg, "kubecfg", "", "Location of kubecfg file (if not running inside k8s)")
 	flag.StringVar(&apiAddr, "api", "", "Address on which to run web API service.  Example ':8080'. (defaults to not run)")
-}
-
-// SetDefinition describes a kubernetes dispatcher set's parameters
-type SetDefinition struct {
-	id        int
-	namespace string
-	name      string
-	port      string
-}
-
-// SetDefinitions represents a set of kubernetes dispatcher set parameter definitions
-type SetDefinitions struct {
-	list []*SetDefinition
-}
-
-// String implements flag.Value
-func (s *SetDefinitions) String() string {
-	var list []string
-	for _, d := range s.list {
-		list = append(list, d.String())
-	}
-
-	return strings.Join(list, ",")
-}
-
-// Set implements flag.Value
-func (s *SetDefinitions) Set(raw string) error {
-	d := new(SetDefinition)
-
-	if err := d.Set(raw); err != nil {
-		return err
-	}
-
-	s.list = append(s.list, d)
-	return nil
-}
-
-var setDefinitions SetDefinitions
-
-func (s *SetDefinition) String() string {
-	return fmt.Sprintf("%s:%s=%d:%s", s.namespace, s.name, s.id, s.port)
-}
-
-// Set configures a kubernetes-derived dispatcher set
-func (s *SetDefinition) Set(raw string) (err error) {
-	// Handle multiple comma-delimited arguments
-	if strings.Contains(raw, ",") {
-		args := strings.Split(raw, ",")
-		for _, n := range args {
-			if err = s.Set(n); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-
-	var id int
-	ns := "default"
-	var name string
-	port := "5060"
-
-	if os.Getenv("POD_NAMESPACE") != "" {
-		ns = os.Getenv("POD_NAMESPACE")
-	}
-
-	pieces := strings.SplitN(raw, "=", 2)
-	if len(pieces) < 2 {
-		return fmt.Errorf("failed to parse %s as the form [namespace:]name=index", raw)
-	}
-
-	naming := strings.SplitN(pieces[0], ":", 2)
-	if len(naming) < 2 {
-		name = naming[0]
-	} else {
-		ns = naming[0]
-		name = naming[1]
-	}
-
-	idString := pieces[1]
-	if pieces = strings.Split(pieces[1], ":"); len(pieces) > 1 {
-		idString = pieces[0]
-		port = pieces[1]
-	}
-
-	id, err = strconv.Atoi(idString)
-	if err != nil {
-		return errors.Wrap(err, "failed to parse index as an integer")
-	}
-
-	s.id = id
-	s.namespace = ns
-	s.name = name
-	s.port = port
-
-	return nil
 }
 
 type dispatcherSets struct {
@@ -170,6 +76,16 @@ func (s *dispatcherSets) add(ctx context.Context, args *SetDefinition) error {
 
 	// Add this set to the list of sets
 	s.sets[args.id] = ds
+
+	return nil
+}
+
+func (s *dispatcherSets) addStatic(ctx context.Context, v *StaticSetDefinition) error {
+	if s.sets == nil {
+		s.sets = make(map[int]sets.DispatcherSet)
+	}
+
+	s.sets[v.id] = sets.NewStaticSet(v.id, v.Members())
 
 	return nil
 }
@@ -325,6 +241,12 @@ func run() error {
 	for _, v := range setDefinitions.list {
 		if err = s.add(ctx, v); err != nil {
 			return errors.Wrap(err, "failed to add dispatcher set")
+		}
+	}
+
+	for _, vs := range staticSetDefinitions.list {
+		if err = s.addStatic(ctx, vs); err != nil {
+			return errors.Wrapf(err, "failed to add static dispatcher set: %s", vs.String())
 		}
 	}
 
