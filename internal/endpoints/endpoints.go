@@ -37,8 +37,8 @@ func Get(ctx context.Context, c *k8s.Client, epNamespace, epName string) (ret En
 			ret.Addresses = append(ret.Addresses, a.GetIp())
 
 			epNode := new(corev1.Node)
-			if err = c.Get(ctx, epNamespace, a.GetNodeName(), epNode); err != nil {
-				log.Printf("WARNING: failed to get node %s for endpoint %s: %v", a.GetNodeName(), ep.String(), err)
+			if err = c.Get(ctx, "", a.GetNodeName(), epNode); err != nil {
+				log.Printf("WARNING: failed to get node %s for endpoint %s: %v", a.GetNodeName(), ep.GetMetadata().GetName(), err)
 			}
 		}
 	}
