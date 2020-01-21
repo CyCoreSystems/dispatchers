@@ -186,12 +186,7 @@ func (s *dispatcherSets) validateSetMember(id int, addr string) bool {
 	if !ok {
 		return false
 	}
-	for _, ref := range selectedSet.Hosts() {
-		if ref == addr {
-			return true
-		}
-	}
-	return false
+	return selectedSet.Validate(addr)
 }
 
 // notify signals to kamailio to reload its dispatcher list

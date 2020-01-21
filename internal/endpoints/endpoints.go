@@ -1,12 +1,9 @@
 // Package endpoints provides kubernetes Endpoint IP retrieval
-//
-// Deprecated: this trivial package is left due to potential external API
-// needs.  It is unused by the dispatchers package in favour of the internal
-// version of this package which supplies additional structure.
 package endpoints
 
 import (
 	"context"
+	"log"
 
 	"github.com/ericchiang/k8s"
 	corev1 "github.com/ericchiang/k8s/apis/core/v1"
@@ -14,23 +11,45 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Endpoints describes the set of Endpoints for a Service as well as the addresses of the Nodes on which those Endpoints run
+type Endpoints struct {
+
+	// Addresses is the list of IP addresses for the Endpoints
+	Addresses []string
+
+	// NodeAddresses is the list of Node addresses on which the Endpoints run
+	NodeAddresses []string
+}
+
 // Get retrieves the IP addresses for a named endpoint in a given
 // namespace.  If the namespace is empty, the `default` namespace
 // will be used.
-func Get(ctx context.Context, c *k8s.Client, epNamespace, epName string) ([]string, error) {
+func Get(ctx context.Context, c *k8s.Client, epNamespace, epName string) (ret Endpoints, err error) {
+	nodes := make(map[string]*corev1.Node)
+
 	ep := new(corev1.Endpoints)
 	if err := c.Get(ctx, epNamespace, epName, ep); err != nil {
-		return nil, errors.Wrap(err, "failed to list endpoints")
+		return ret, errors.Wrap(err, "failed to list endpoints")
 	}
 
-	addrs := []string{}
 	for _, s := range ep.GetSubsets() {
 		for _, a := range s.GetAddresses() {
-			addrs = append(addrs, a.GetIp())
+			ret.Addresses = append(ret.Addresses, a.GetIp())
+
+			epNode := new(corev1.Node)
+			if err = c.Get(ctx, epNamespace, a.GetNodeName(), epNode); err != nil {
+				log.Printf("WARNING: failed to get node %s for endpoint %s: %v", a.GetNodeName(), ep.String(), err)
+			}
 		}
 	}
 
-	return addrs, nil
+	for _, n := range nodes {
+		for _, a := range n.GetStatus().GetAddresses() {
+			ret.NodeAddresses = append(ret.NodeAddresses, a.GetAddress())
+		}
+	}
+
+	return
 }
 
 // Watch watches a namespace and returns a nil error on the provided channel

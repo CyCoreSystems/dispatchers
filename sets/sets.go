@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CyCoreSystems/dispatchers/endpoints"
+	"github.com/CyCoreSystems/dispatchers/internal/endpoints"
 	"github.com/ericchiang/k8s"
 	"github.com/pkg/errors"
 )
@@ -31,6 +31,9 @@ type DispatcherSet interface {
 	// Update causes the dispatcher set to be updated
 	Update(context.Context) (changed bool, err error)
 
+	// Validate checks an address for membership in the set
+	Validate(a string) bool
+
 	// Watch waits for the dispatcher set to change, returning the new value when that change occurs.
 	Watch(context.Context) (string, error)
 }
@@ -49,6 +52,15 @@ func (s *staticSet) ID() int {
 
 func (s *staticSet) Hosts() []string {
 	return s.Members
+}
+
+func (s *staticSet) Validate(a string) bool {
+	for _, m := range s.Members {
+		if m == a {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *staticSet) Export() string {
@@ -96,6 +108,9 @@ type kubernetesSet struct {
 
 	// members is the list of members of this set
 	members []string
+
+	// nodeAddresses is the list of addresses belonging to the nodes on whic the members are running
+	nodeAddresses []string
 
 	// endpointName is the name of the Kubernetes Endpoint List
 	// from which the dispatcher endpoints should be derived.
@@ -167,17 +182,32 @@ func (s *kubernetesSet) Export() string {
 
 // Update updates the list of proxies
 func (s *kubernetesSet) Update(ctx context.Context) (changed bool, err error) {
-	list, err := s.getEndpoints(ctx)
+	eps, err := endpoints.Get(ctx, s.kc, s.endpointNamespace, s.endpointName)
 	if err != nil {
 		return
 	}
 
-	if differ(s.members, list) {
+	if differ(s.members, eps.Addresses) {
 		changed = true
 	}
-	s.members = list
+	s.members = eps.Addresses
+	s.nodeAddresses = eps.NodeAddresses
 
 	return
+}
+
+func (s *kubernetesSet) Validate(a string) bool {
+	for _, m := range s.members {
+		if a == m {
+			return true
+		}
+	}
+	for _, m := range s.nodeAddresses {
+		if a == m {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *kubernetesSet) Watch(ctx context.Context) (string, error) {
@@ -200,10 +230,6 @@ func (s *kubernetesSet) Watch(ctx context.Context) (string, error) {
 	}
 
 	return s.Export(), ctx.Err()
-}
-
-func (s *kubernetesSet) getEndpoints(ctx context.Context) ([]string, error) {
-	return endpoints.Get(ctx, s.kc, s.endpointNamespace, s.endpointName)
 }
 
 func (s *kubernetesSet) maintainWatch(ctx context.Context) {
