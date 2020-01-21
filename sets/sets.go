@@ -202,11 +202,13 @@ func (s *kubernetesSet) Validate(a string) bool {
 			return true
 		}
 	}
+
 	for _, m := range s.nodeAddresses {
 		if a == m {
 			return true
 		}
 	}
+
 	return false
 }
 

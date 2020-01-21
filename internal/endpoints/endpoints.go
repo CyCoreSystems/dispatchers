@@ -40,6 +40,7 @@ func Get(ctx context.Context, c *k8s.Client, epNamespace, epName string) (ret En
 			if err = c.Get(ctx, "", a.GetNodeName(), epNode); err != nil {
 				log.Printf("WARNING: failed to get node %s for endpoint %s: %v", a.GetNodeName(), ep.GetMetadata().GetName(), err)
 			}
+			nodes[a.GetNodeName()] = epNode
 		}
 	}
 
