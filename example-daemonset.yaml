@@ -1,8 +1,39 @@
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: voip-manager
+  namespace: voip
+rules:
+  - apiGroups: [""] # "" indicates the core API group
+    resources: ["pods","endpoints","services","nodes"]
+    verbs: ["get", "watch", "list"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "watch", "list", "update", "patch"]
+
+---
+
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: manager
+  namespace: voip
+subjects:
+  - kind: User
+    name: system:serviceaccount:voip:default
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: voip-manager
+  apiGroup: rbac.authorization.k8s.io
+
+---
+
 piVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: kamailio
-  namespace: sip
+  namespace: voip
   labels:
     component: kamailio
 spec:
@@ -22,12 +53,12 @@ spec:
         - name: config
       containers:
         - name: kamailio
-          image: cycoresystems/astricon-2016-kamailio:gce
+          image: cycoresystems/kamailio
           volumeMounts:
             - name: config
               mountPath: /data/kamailio
         - name: rtpproxy
-          image: cycoresystems/astricon-2016-rtpproxy:gce
+          image: cycoresystems/rtpproxy
         - name: dispatchers
           image: cycoresystems/dispatchers
           command:
