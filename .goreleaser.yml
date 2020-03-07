@@ -9,8 +9,9 @@ builds:
         - linux
      goarch:
         - amd64
-archive:
-   format: binary
+archives:
+   - id: dispatchers
+     format: binary
 checksum:
   name_template: 'checksums.txt'
 snapshot:
