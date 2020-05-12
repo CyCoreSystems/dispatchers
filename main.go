@@ -2,17 +2,13 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -157,52 +153,6 @@ func (s *dispatcherSets) maintain(ctx context.Context) error {
 	return ctx.Err()
 }
 
-// ServeHTTP offers a web service by which clients may validate membership of an IP address within a dispatcher set or fetch a dispatcher set
-func (s *dispatcherSets) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Handle requests for /check/<setID>/<ip address> to validate membership of an IP to a dispatcher set
-	if strings.HasPrefix(r.URL.Path, "/check/") {
-		pieces := strings.Split(strings.TrimPrefix(r.URL.Path, "/check/"), "/")
-		if len(pieces) != 2 {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		setID, err := strconv.Atoi(pieces[0])
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		if s.validateSetMember(setID, pieces[1]) {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		w.WriteHeader(http.StatusNotFound)
-		return
-	} else if strings.HasPrefix(r.URL.Path, "/dispatcher/") { // Handle requests for /dispatcher/<setID> to fetch a dispatcher set
-		pieces := strings.Split(strings.TrimPrefix(r.URL.Path, "/dispatcher/"), "/")
-		if len(pieces) != 1 {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		setID, err := strconv.Atoi(pieces[0])
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		selectedSet := s.getDispatcherSet(setID)
-		if selectedSet != nil {
-			js, err := json.Marshal(selectedSet)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			w.Write(js) //If WriteHeader has not yet been called, Write calls WriteHeader(http.StatusOK) before writing the data
-			return
-		}
-	}
-
-	w.WriteHeader(http.StatusNotFound)
-}
-
 func (s *dispatcherSets) validateSetMember(id int, addr string) bool {
 	selectedSet, ok := s.sets[id]
 	if !ok {
@@ -298,23 +248,9 @@ func run() error {
 		}
 	})
 
-	// Run a web service to offer IP checks for each member of the dispatcher set and fetch a dispatcher set
+	// Run HTTP API service
 	if apiAddr != "" {
-		var srv http.Server
-		srv.Addr = apiAddr
-		srv.Handler = s
-
-		go func() {
-			<-ctx.Done()
-			if err := srv.Shutdown(ctx); err != nil {
-				log.Fatalln("failed to shut down HTTP server:", err)
-			}
-		}()
-		go func() {
-			if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-				log.Fatalln("failed to start HTTP server:", err)
-			}
-		}()
+		go s.startHTTP(ctx, apiAddr)
 	}
 
 	for ctx.Err() == nil {
