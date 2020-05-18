@@ -10,7 +10,6 @@ import (
 )
 
 func (s *dispatcherSets) startHTTP(ctx context.Context, addr string) {
-
 	http.HandleFunc("/check/", s.handleIPCheckRequest)
 	http.HandleFunc("/dispatcher/", s.handleListSetRequest)
 	http.HandleFunc("/dispatchers/", s.handleListSetRequest)
@@ -40,7 +39,6 @@ func (s *dispatcherSets) handleIPCheckRequest(w http.ResponseWriter, r *http.Req
 
 	w.WriteHeader(http.StatusNotFound)
 	return
-
 }
 
 // Return a given dispatcher set
@@ -62,7 +60,7 @@ func (s *dispatcherSets) handleListSetRequest(w http.ResponseWriter, r *http.Req
 	if selectedSet != nil {
 		w.Header().Add("Content-Type", "application/json")
 
-		if err = json.NewEncoder(w).Encode(selectedSet); err != nil {
+		if err = json.NewEncoder(w).Encode(selectedSet.Hosts()); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 		return
