@@ -38,7 +38,6 @@ func (s *dispatcherSets) handleIPCheckRequest(w http.ResponseWriter, r *http.Req
 	}
 
 	w.WriteHeader(http.StatusNotFound)
-	return
 }
 
 // Return a given dispatcher set
