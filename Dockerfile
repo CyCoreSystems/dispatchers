@@ -1,3 +1,4 @@
-FROM ulexus/go-minimal
+FROM scratch
 COPY dispatchers /app
+ENTRYPOINT ["/app"]
 
