@@ -58,11 +58,11 @@ The image may also be pulled directly:
 Command-line options are available to customize and configure the operation of
 `dispatchers`:
 
-- `-kubecfg <string>` - allows specification of a kubecfg, if not running inside kubernetes
-- `-o <string>` - specifies the output filename for the dispatcher list.  It defaults to `/data/kamailio/dispatcher.list`.
-- `-p <string>` - specifies the port on which kamailio is running its binrpc service.  It defaults to `9998`.
-- `-set [namespace:]<service-name>=<index>[:port]`- Specifies a dispatcher set.  This may be passed multiple times for multiple dispatcher sets.  Namespace and port are optional.  If not specified, namespace is `default` or the value of `POD_NAMESPACE` and port is `5060`.
-- `-static <index>=<host>[:port][,<host>[:port]]...`- Specifies a static dispatcher set.  This is usually used to define a dispatcher set composed on external resources, such as an external trunk.  Multiple host:port pairs may be passed for multiple contacts in the same dispatcher set.  The option may be declared any number of times for defining any number of unique dispatcher sets.  If not specified, the port will be assigned as `5060`.
+   - `-kubecfg <string>`: allows specification of a kubecfg, if not running inside kubernetes
+   - `-o <string>`: specifies the output filename for the dispatcher list.  It defaults to `/data/kamailio/dispatcher.list`.
+   - `-p <string>`: specifies the port on which kamailio is running its binrpc service.  It defaults to `9998`.
+   - `-set [namespace:]<service-name>=<index>[:port]`: Specifies a dispatcher set.  This may be passed multiple times for multiple dispatcher sets.  Namespace and port are optional.  If not specified, namespace is `default` or the value of `POD_NAMESPACE` and port is `5060`.
+   - `-static <index>=<host>[:port][,<host>[:port]]...`: Specifies a static dispatcher set.  This is usually used to define a dispatcher set composed on external resources, such as an external trunk.  Multiple host:port pairs may be passed for multiple contacts in the same dispatcher set.  The option may be declared any number of times for defining any number of unique dispatcher sets.  If not specified, the port will be assigned as `5060`.
 
 For simple systems where the monitored services are in the same namespace as
 `dispatchers`, you can set the `POD_NAMESPACE` environment variable to
