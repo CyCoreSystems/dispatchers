@@ -3,12 +3,19 @@
 
 dispatcher management for kamailio running inside kubernetes
 
-This tool keeps a `dispatchers.list` file in sync with the Endpoints of any
-number of Kubernetes Services.  Each Service is mapped to a single dispatcher
-set ID which may be used in kamailio route scripts.
+This tool can be used as a library, with the `Controller` as a common base,
+plugging your own `Notifier` and/or `Exporter` into place.
+
+It can also be used directly with the included daemon, which will keep a
+`dispatchers.list` file in sync with sets of Endpoints of Kubernetes Services.
+Each Service is mapped to a single dispatcher set ID for the Kamailio
+`dispatcher` module.
 
 When the `dispatchers.list` file is updated, the tool connects to kamailio over
 its binrpc service and tells it to reload the file.
+
+The following documentation describes the default usage with the reference
+daemon.
 
 ## Usage
 
@@ -29,7 +36,7 @@ spec:
     - name: config
   containers:
     - name: kamailio
-      image: cycoresystems/asterison-2016-kamailio
+      image: cycoresystems/astricon-2016-kamailio
       volumeMounts:
         - name: config
           mountPath: /data/kamailio
