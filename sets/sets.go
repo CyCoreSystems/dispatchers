@@ -1,17 +1,46 @@
 package sets
 
 import (
-	"context"
 	"fmt"
-	"strings"
-	"time"
+	"strconv"
+	"sync"
 
-	"github.com/CyCoreSystems/dispatchers/internal/endpoints"
-	"github.com/ericchiang/k8s"
-	"github.com/pkg/errors"
+	"inet.af/netaddr"
+	discoveryv1 "k8s.io/api/discovery/v1"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/tools/cache"
 )
 
-var maxUpdateInterval = 30 * time.Second
+// Endpoint describes an Address:Port pair for a dispatcher endpoint member.
+type Endpoint struct {
+	Address string
+	Port    uint32
+}
+
+func (ep *Endpoint) String() string {
+	return fmt.Sprintf("%s:%d", formatAddress(ep.Address), ep.Port)
+}
+
+func formatAddress(addr string) string {
+	ip, err := netaddr.ParseIP(addr)
+	if err != nil {
+		return addr
+	}
+
+	if ip.Is6() {
+		return fmt.Sprintf("[%s]", ip.String())
+	}
+
+	return ip.String()
+}
+
+type State struct {
+	// ID is the unique identifier of the dispatcher set.
+	ID int
+
+	// Endpoints is the set of hosts within the dispatcher set.
+	Endpoints []*Endpoint
+}
 
 // DispatcherSet defines an individual dispatcher set
 type DispatcherSet interface {
@@ -19,228 +48,249 @@ type DispatcherSet interface {
 	// Close shuts down the dispatcher set
 	Close()
 
-	// ID returns the dispatcher set ID
-	ID() int
+	// State returns the current state of the DispatcherSet
+	State() *State
 
-	// Hosts returns the set addresses of the members of the dispatcher set
-	Hosts() []string
+	// IsMember checks an address for membership in the set
+	IsMember(address string, port uint32) bool
 
-	// Export dumps the dispatcher set
-	Export() string
-
-	// Update causes the dispatcher set to be updated
-	Update(context.Context) (changed bool, err error)
-
-	// Validate checks an address for membership in the set
-	Validate(a string) bool
-
-	// Watch waits for the dispatcher set to change, returning the new value when that change occurs.
-	Watch(context.Context) (string, error)
+	// RegisterChangeFunc registers a callback function which will be invoked whenever the DispatcherSet contents changes.
+	RegisterChangeFunc(func(*State))
 }
 
 // StaticSet represents a dispatcher set whose members are static or manually defined
 type staticSet struct {
-	id      int
-	Members []string
+	id        int
+	Endpoints []*Endpoint
 }
 
 func (s *staticSet) Close() {}
 
-func (s *staticSet) ID() int {
-	return s.id
+func (s *staticSet) State() *State {
+	return &State{
+		ID:        s.id,
+		Endpoints: s.Endpoints,
+	}
 }
 
-func (s *staticSet) Hosts() []string {
-	return s.Members
-}
+func (s *staticSet) IsMember(addr string, port uint32) bool {
+	for _, m := range s.Endpoints {
+		if m.Address == addr {
 
-func (s *staticSet) Validate(a string) bool {
-	for _, m := range s.Members {
-		if m == a {
+			if port > 0 {
+				if m.Port != port {
+					return false
+				}
+			}
 			return true
 		}
 	}
 	return false
 }
 
-func (s *staticSet) Export() string {
-	ret := fmt.Sprintf("# Dispatcher set %d\n", s.id)
-
-	for _, m := range s.Members {
-		ret += fmt.Sprintf("%d sip:%s", s.id, m)
-		if !strings.Contains(m, ":") {
-			ret += ":5060"
-		}
-		ret += "\n"
-	}
-
-	return ret
-}
-
-func (s *staticSet) Update(ctx context.Context) (bool, error) {
-	return false, nil
-}
-
-func (s *staticSet) Watch(ctx context.Context) (string, error) {
-	<-ctx.Done()
-	return s.Export(), ctx.Err()
-}
+func (s *staticSet) RegisterChangeFunc(f func(*State)) {}
 
 // NewStaticSet returns a new statically-defined dispatcher set
-func NewStaticSet(id int, members []string) DispatcherSet {
+func NewStaticSet(id int, endpoints []*Endpoint) DispatcherSet {
 	return &staticSet{
-		id:      id,
-		Members: members,
+		id:        id,
+		Endpoints: endpoints,
 	}
 }
 
 // kubernetesSet represents a dispatcher set whose
 // data should be derived from Kubernetes.
 type kubernetesSet struct {
-	kc *k8s.Client
-
-	cancel context.CancelFunc
-
-	changes chan error
-
 	// id is the dispatch set index for this set
 	id int
 
-	// members is the list of members of this set
-	members []string
+	endpoints []*Endpoint
 
-	// nodeAddresses is the list of addresses belonging to the nodes on whic the members are running
-	nodeAddresses []string
+	// callbacks is the set of functions which should be called when the endpoint membership changes.
+	callbacks []func(*State)
 
-	// endpointName is the name of the Kubernetes Endpoint List
+	// name is the name of the Kubernetes Endpoint List
 	// from which the dispatcher endpoints should be derived.
-	endpointName string
+	name string
 
-	// endpointNamespace is the namespace in which the Endpoint
+	// namespace is the namespace in which the Endpoint
 	// should be found.
-	endpointNamespace string
+	namespace string
 
 	port string
+
+	mu sync.Mutex
 }
 
 // NewKubernetesSet returns a new kubernetes-based dispatcher set.
 //
-//  * `id` is the dispatcher set's id
+//  * `setID` is the dispatcher set's id
 //
 //  * `namespace` is the namespace of the Service whose endpoints will describe this dispatcher set.
 //
 //  * `name` is the name of the Service whose endpoints will describe this dispatcher set.
 //
-//  * `port` is the port number of the SIP endpoints this set describes.  This is optional, and if not specified, will default to "5060".
+//  * `port` is the port reference of the SIP endpoints this set describes.  This is optional, and if not specified, will default to "5060".
 //
-func NewKubernetesSet(ctx context.Context, kc *k8s.Client, id int, namespace, name, port string) (DispatcherSet, error) {
+func NewKubernetesSet(f informers.SharedInformerFactory, setID int, namespace, name, port string) (DispatcherSet, error) {
 	if port == "" {
 		port = "5060"
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
+	informer := f.Discovery().V1().EndpointSlices()
 
 	s := &kubernetesSet{
-		cancel:            cancel,
-		changes:           make(chan error),
-		id:                id,
-		kc:                kc,
-		endpointNamespace: namespace,
-		endpointName:      name,
-		port:              port,
+		id:        setID,
+		namespace: namespace,
+		name:      name,
+		port:      port,
 	}
 
-	go s.maintainWatch(ctx)
+	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    s.addFunc,
+		UpdateFunc: s.updateFunc,
+		DeleteFunc: s.deleteFunc,
+	})
 
 	return s, nil
 }
 
-func (s *kubernetesSet) Close() {
-	if s.cancel != nil {
-		s.cancel()
-	}
-}
-
-// ID returns the index of the dispatcher set
-func (s *kubernetesSet) ID() int {
-	return s.id
-}
-
-func (s *kubernetesSet) Hosts() []string {
-	return s.members
-}
-
-func (s *kubernetesSet) Export() string {
-	ret := fmt.Sprintf("# Dispatcher set %d\n", s.id)
-
-	for _, m := range s.members {
-		ret += fmt.Sprintf("%d sip:%s:%s\n", s.id, m, s.port)
+func (s *kubernetesSet) updateSet(obj interface{}) {
+	epSlice, ok := obj.(*discoveryv1.EndpointSlice)
+	if !ok {
+		return
 	}
 
-	return ret
-}
+	if epSlice.Namespace != s.namespace ||
+		epSlice.Name != s.name {
+		return
+	}
 
-// Update updates the list of proxies
-func (s *kubernetesSet) Update(ctx context.Context) (changed bool, err error) {
-	eps, err := endpoints.Get(ctx, s.kc, s.endpointNamespace, s.endpointName)
+	list, err := flattenEndpointSlice(s.port, epSlice)
 	if err != nil {
 		return
 	}
 
-	if differ(s.members, eps.Addresses) {
-		changed = true
+	s.mu.Lock()
+	if !isChanged(s.endpoints, list) {
+		s.mu.Unlock()
+		return
 	}
-	s.members = eps.Addresses
-	s.nodeAddresses = eps.NodeAddresses
 
-	return
+	s.endpoints = list
+	s.mu.Unlock()
+
+	state := &State{
+		ID:        s.id,
+		Endpoints: list,
+	}
+
+	for _, f := range s.callbacks {
+		f(state)
+	}
 }
 
-func (s *kubernetesSet) Validate(a string) bool {
-	for _, m := range s.members {
-		if a == m {
+func (s *kubernetesSet) addFunc(obj interface{}) {
+	s.updateSet(obj)
+}
+
+func (s *kubernetesSet) updateFunc(old interface{}, obj interface{}) {
+	s.updateSet(obj)
+}
+
+func (s *kubernetesSet) deleteFunc(obj interface{}) {
+	s.updateSet(obj)
+}
+
+func (s *kubernetesSet) Close() {}
+
+func (s *kubernetesSet) State() *State {
+	return &State{
+		ID: s.id,
+		Endpoints: s.endpoints,
+	}
+}
+
+func (s *kubernetesSet) RegisterChangeFunc(f func(*State)) {
+	s.mu.Lock()
+
+	s.callbacks = append(s.callbacks, f)
+
+	defer s.mu.Unlock()
+}
+
+func (s *kubernetesSet) IsMember(addr string, port uint32) bool {
+	for _, ep := range s.endpoints {
+		if ep.Address == addr {
+
+			if port > 0 {
+				if ep.Port != port {
+					return false
+				}
+			}
 			return true
 		}
 	}
-
-	for _, m := range s.nodeAddresses {
-		if a == m {
-			return true
-		}
-	}
-
 	return false
 }
 
-func (s *kubernetesSet) Watch(ctx context.Context) (string, error) {
-	for ctx.Err() == nil {
-		select {
-		case err := <-s.changes:
-			if err != nil {
-				return s.Export(), err
+func flattenEndpointSlice(refPort string, epSlice *discoveryv1.EndpointSlice) (out []*Endpoint, err error) {
+	portNumber, err := strconv.Atoi(refPort)
+	if err != nil {
+		portNumber = 0
+	}
+
+	if portNumber == 0 {
+		for _, p := range epSlice.Ports {
+			if p.Name == nil {
+				continue
 			}
-		case <-time.After(maxUpdateInterval):
+
+			if *p.Name == refPort {
+				if p.Port == nil {
+					return nil, fmt.Errorf("endpoint port %s has no numerical port", *p.Name)
+				}
+				portNumber = int(*p.Port)
+			}
 		}
 
-		changed, err := s.Update(ctx)
-		if err != nil {
-			return s.Export(), errors.Wrap(err, "failed to get updated data")
-		}
-		if changed {
-			return s.Export(), nil
+		if portNumber == 0 {
+			return nil, fmt.Errorf("failed to find port %s in EndpointSlice %s", refPort, epSlice.Name)
 		}
 	}
 
-	return s.Export(), ctx.Err()
+	for _, n := range epSlice.Endpoints {
+		for _, addr := range n.Addresses {
+			out = append(out, &Endpoint{
+				Address: addr,
+				Port:    uint32(portNumber),
+			})
+		}
+	}
+
+	return out, nil
 }
 
-func (s *kubernetesSet) maintainWatch(ctx context.Context) {
-	for ctx.Err() == nil {
-
-		err := endpoints.Watch(ctx, s.kc, s.changes, s.endpointNamespace)
-		if err != nil {
-			s.changes <- err
-		}
-		time.Sleep(time.Second)
+func isChanged(previous []*Endpoint, current []*Endpoint) (changed bool) {
+	if len(previous) != len(current) {
+		return true
 	}
+
+	for _, p := range previous {
+		var found bool
+
+		for _, c := range current {
+			if c.Address == p.Address &&
+				c.Port == p.Port {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return false
+		}
+	}
+
+	return true
 }

@@ -9,6 +9,7 @@ builds:
         - linux
      goarch:
         - amd64
+     dir: ./cmd/dispatchers
 archives:
    - id: dispatchers
      format: binary

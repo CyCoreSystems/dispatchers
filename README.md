@@ -1,4 +1,6 @@
 # dispatchers
+[![Go Reference](https://pkg.go.dev/badge/github.com/CyCoreSystems/dispatchers/v2.svg)](https://pkg.go.dev/github.com/CyCoreSystems/dispatchers/v2)
+
 dispatcher management for kamailio running inside kubernetes
 
 This tool keeps a `dispatchers.list` file in sync with the Endpoints of any

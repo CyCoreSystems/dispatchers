@@ -5,8 +5,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
 var setDefinitions SetDefinitions
@@ -93,7 +91,7 @@ func (s *SetDefinition) Set(raw string) (err error) {
 
 	id, err = strconv.Atoi(idString)
 	if err != nil {
-		return errors.Wrap(err, "failed to parse index as an integer")
+		return fmt.Errorf("failed to parse index as an integer: %w", err)
 	}
 
 	s.id = id
