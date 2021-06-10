@@ -22,7 +22,7 @@ var DefaultFileTemplate = `
 
 {{ range . }}
 # Dispatcher set {{ .ID }}
-{{ _, $ep := range .Endpoints }}
+{{ range $index, $ep := .Endpoints }}
 {{ .ID }} sip:{{ $ep }}
 {{ end }}
 {{ end }}

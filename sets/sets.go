@@ -1,6 +1,7 @@
 package sets
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"sync"
@@ -132,7 +133,7 @@ type kubernetesSet struct {
 //
 //  * `port` is the port reference of the SIP endpoints this set describes.  This is optional, and if not specified, will default to "5060".
 //
-func NewKubernetesSet(f informers.SharedInformerFactory, setID int, namespace, name, port string) (DispatcherSet, error) {
+func NewKubernetesSet(ctx context.Context, f informers.SharedInformerFactory, setID int, namespace, name, port string) (DispatcherSet, error) {
 	if port == "" {
 		port = "5060"
 	}
@@ -151,6 +152,8 @@ func NewKubernetesSet(f informers.SharedInformerFactory, setID int, namespace, n
 		UpdateFunc: s.updateFunc,
 		DeleteFunc: s.deleteFunc,
 	})
+
+	go informer.Informer().Run(ctx.Done())
 
 	return s, nil
 }

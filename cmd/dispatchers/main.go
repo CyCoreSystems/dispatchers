@@ -98,11 +98,10 @@ func run() error {
 		Logger: log.Default(),
 	}
 
-	informerFactory := informers.NewSharedInformerFactory(kc, time.Hour)
-	informerFactory.Start(ctx.Done())
+	informerFactory := informers.NewSharedInformerFactory(kc, time.Minute)
 
 	for _, v := range setDefinitions.list {
-		ds, err := sets.NewKubernetesSet(informerFactory, v.id, v.namespace, v.name, v.port)
+		ds, err := sets.NewKubernetesSet(ctx, informerFactory, v.id, v.namespace, v.name, v.port)
 		if err != nil {
 			return fmt.Errorf("failed to create dispatcher set %d: %w", v.id, err)
 		}
@@ -129,6 +128,15 @@ func run() error {
 		svc := &httpService{controller}
 
 		go svc.Run(ctx, apiAddr)
+	}
+
+	for ctx.Err() == nil {
+		<-time.After(time.Minute)
+
+		log.Println("current sets:")
+		for _, set := range controller.CurrentState() {
+			log.Printf("  set %d: %v", set.ID, set.Endpoints)
+		}
 	}
 
 	<-ctx.Done()
