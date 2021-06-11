@@ -24,7 +24,8 @@ changelog:
        - '^docs:'
        - '^test:'
 dockers:
-   - image_templates:
+  - dockerfile: Dockerfile.goreleaser
+    image_templates:
        - "cycoresystems/dispatchers:{{ .Tag }}"
        - "cycoresystems/dispatchers:v{{ .Major }}"
        - "cycoresystems/dispatchers:v{{ .Major }}.{{ .Minor }}"
