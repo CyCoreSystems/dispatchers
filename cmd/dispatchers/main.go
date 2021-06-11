@@ -126,18 +126,17 @@ func run() (err error) {
 		go svc.Run(ctx, apiAddr)
 	}
 
-	for ctx.Err() == nil {
-		<-time.After(time.Minute)
-
-		log.Println("current sets:")
-		for _, set := range controller.CurrentState() {
-			log.Printf("  set %d: %v", set.ID, set.Endpoints)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(time.Minute):
+			log.Println("current sets:")
+			for _, set := range controller.CurrentState() {
+				log.Printf("  set %d: %v", set.ID, set.Endpoints)
+			}
 		}
 	}
-
-	<-ctx.Done()
-
-	return nil
 }
 
 func newStopContext() (context.Context, context.CancelFunc) {
