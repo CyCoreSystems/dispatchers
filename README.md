@@ -139,3 +139,10 @@ spec:
 
 You can also bind the namespace-default ServiceAccount to make things easier, if
 you have a simple setup:  `system:serviceaccount:<namespace>:default`.
+
+## Breaking changes
+
+With v2, we now use the more efficient EndpointSlices instead of Endpoints.
+While this will generally be an invisible change, your RBACs will likely need to
+be updated from v1.
+In particular, you will need access to the `endpointslices` resource in the `discovery.k8s.io` API Group.
