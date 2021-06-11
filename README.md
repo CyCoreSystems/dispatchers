@@ -1,6 +1,6 @@
 # dispatchers
 [![Go Reference](https://pkg.go.dev/badge/github.com/CyCoreSystems/dispatchers/v2.svg)](https://pkg.go.dev/github.com/CyCoreSystems/dispatchers/v2)
-![master](https://github.com/github/docs/actions/workflows/main.yml/badge.svg?branch=master)
+![master](https://github.com/CyCoreSystems/dispatchers/actions/workflows/go.yml/badge.svg?branch=master)
 
 dispatcher management for kamailio running inside kubernetes
 
