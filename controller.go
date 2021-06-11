@@ -25,13 +25,14 @@ type Controller struct{
 
 	sets []sets.DispatcherSet
 
-
 	mu sync.RWMutex
 }
 
 // AddSet adds a DispatcherSet to the Controller
 func (c *Controller) AddSet(set sets.DispatcherSet) {
 	c.mu.Lock()
+
+	set.RegisterChangeFunc(c.ChangeFunc)
 
 	c.sets = append(c.sets, set)
 
@@ -71,6 +72,8 @@ func (c *Controller) Notify() error {
 func (c *Controller) ChangeFunc(state *sets.State) {
 	currentState := c.CurrentState()
 
+	log.Println("exporting...")
+
 	if c.Exporter != nil {
 		if err := c.Exporter.Export(currentState); err != nil {
 			if c.Logger != nil {
@@ -78,6 +81,8 @@ func (c *Controller) ChangeFunc(state *sets.State) {
 			}
 		}
 	}
+
+	log.Println("notifying...")
 
 	if c.Notifier != nil {
 		if err := c.Notifier.Notify(currentState); err != nil {

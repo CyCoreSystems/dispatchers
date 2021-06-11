@@ -40,7 +40,7 @@ func (e *FileExporter) Export(sets []*sets.State) error {
 		return fmt.Errorf("failed to write dispatchers to file: %w", err)
 	}
 
-	return f.Close()
+	return nil
 }
 
 // NewFileExporter creates a new dispatchers.Exporter which writes the dispatcher sets to a file.
