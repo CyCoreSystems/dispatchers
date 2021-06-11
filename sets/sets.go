@@ -164,8 +164,16 @@ func (s *kubernetesSet) updateSet(obj interface{}) {
 		return
 	}
 
-	if epSlice.Namespace != s.namespace ||
-		epSlice.Name != s.name {
+	if epSlice.Namespace != s.namespace {
+		return
+	}
+
+	svcName, ok := epSlice.Labels["kubernetes.io/service-name"]
+	if !ok {
+		return
+	}
+
+	if svcName != s.name {
 		return
 	}
 
