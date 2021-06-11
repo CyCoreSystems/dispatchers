@@ -1,5 +1,6 @@
 # dispatchers
 [![Go Reference](https://pkg.go.dev/badge/github.com/CyCoreSystems/dispatchers/v2.svg)](https://pkg.go.dev/github.com/CyCoreSystems/dispatchers/v2)
+![master](https://github.com/github/docs/actions/workflows/main.yml/badge.svg?branch=master)
 
 dispatcher management for kamailio running inside kubernetes
 
@@ -80,7 +81,7 @@ automatically use the same namespace in which `dispatcher` runs.
 ## RBAC
 
 When role-based access control (RBAC) is enabled in kubernetes, `dispatchers`
-will need to run under a service account with access to the `endpoints` resource
+will need to run under a service account with access to the `endpointsices` resource
 for the namespace(s) in which your dispatcher services exist.
 
 Example RBAC Role for services in the `sip` namespace:
@@ -98,26 +99,25 @@ metadata:
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: endpoints-reader
+  name: endpointslice-reader
 rules:
-  - apiGroups: [""]
-    resources: ["endpoints"]
+  - apiGroups: ["discovery.k8s.io"]
+    resources: ["endpointslices"]
     verbs: ["get", "watch", "list"]
 
 --
 
-kind: RoleBinding
+kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  namespace: sip
   name: dispatchers
 subjects:
   - kind: ServiceAccount
     name: dispatchers
-    apiGroup: rbac.authorization.k8s.io
+    namespace: sip
 roleRef:
   kind: ClusterRole
-  name: endpoints-reader
+  name: endpointslice-reader
 ```
 
 One `RoleBinding` should be added for each namespace `dispatchers` should have
