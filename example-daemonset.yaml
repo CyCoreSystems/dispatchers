@@ -9,11 +9,11 @@ metadata:
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: node-getter
+  name: endpoint-slices
 rules:
-  - apiGroups: [""]
-    resources: ["nodes"]
-    verbs: ["get"]
+  - apiGroups: ["discovery.k8s.io"]
+    resources: ["endpointslices"]
+    verbs: ["get", "watch", "list"]
 
 ---
 
@@ -22,45 +22,17 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: dispatchers-node-getter
 subjects:
-  - kind: User
+  - kind: ServiceAccount
     name: dispatchers
-    apiGroup: rbac.authorization.k8s.io
+    namespace: voip
 roleRef:
   kind: ClusterRole
-  name: node-getter
+  name: endpoint-slices
   apiGroup: rbac.authorization.k8s.io
 
 ---
 
-kind: Role
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: dispatchers
-  namespace: voip
-rules:
-  - apiGroups: [""] # "" indicates the core API group
-    resources: ["pods","endpoints","services"]
-    verbs: ["get", "watch", "list"]
-
----
-
-kind: RoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: manager
-  namespace: voip
-subjects:
-  - kind: User
-    name: dispatchers
-    apiGroup: rbac.authorization.k8s.io
-roleRef:
-  kind: Role
-  name: dispatchers
-  apiGroup: rbac.authorization.k8s.io
-
----
-
-piVersion: apps/v1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: kamailio
@@ -78,9 +50,6 @@ spec:
         component: kamailio
     spec:
       serviceAccountName: dispatchers
-      nodeSelector:
-        cloud.google.com/gke-nodepool: pool-kamailio
-      hostNetwork: true
       volumes:
         - name: config
       containers:
