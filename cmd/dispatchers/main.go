@@ -57,13 +57,9 @@ func main() {
 	os.Exit(1)
 }
 
-func run() error {
+func run() (err error) {
 	ctx, cancel := newStopContext()
 	defer cancel()
-
-	flag.Parse()
-
-	var err error
 
 	var kCfg *rest.Config
 
@@ -103,7 +99,7 @@ func run() error {
 	for _, v := range setDefinitions.list {
 		ds, err := sets.NewKubernetesSet(ctx, informerFactory, v.id, v.namespace, v.name, v.port)
 		if err != nil {
-			return fmt.Errorf("failed to create dispatcher set %d: %w", v.id, err)
+			return fmt.Errorf("failed to create dispatcher set %s: %w", v.String(), err)
 		}
 
 		controller.AddSet(ds)
