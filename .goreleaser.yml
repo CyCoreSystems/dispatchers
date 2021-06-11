@@ -29,3 +29,7 @@ dockers:
        - "cycoresystems/dispatchers:v{{ .Major }}"
        - "cycoresystems/dispatchers:v{{ .Major }}.{{ .Minor }}"
        - cycoresystems/dispatchers:latest
+       - "ghcr.io/cycoresystems/dispatchers:{{ .Tag }}"
+       - "ghcr.io/cycoresystems/dispatchers:v{{ .Major }}"
+       - "ghcr.io/cycoresystems/dispatchers:v{{ .Major }}.{{ .Minor }}"
+       - ghcr.io/cycoresystems/dispatchers:latest
