@@ -94,7 +94,7 @@ func run() (err error) {
 		Logger: log.Default(),
 	}
 
-	informerFactory := informers.NewSharedInformerFactory(kc, time.Minute)
+	informerFactory := informers.NewSharedInformerFactory(kc, 10*time.Minute)
 
 	for _, v := range setDefinitions.list {
 		ds, err := sets.NewKubernetesSet(ctx, informerFactory, v.id, v.namespace, v.name, v.port)
