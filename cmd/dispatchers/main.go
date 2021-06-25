@@ -26,7 +26,7 @@ var rpcHost string
 var kubeCfg string
 
 var apiAddr string
-var legacyEndpointSlices bool
+var legacyEndpoints bool
 
 // KamailioStartupDebounceTimer is the amount of time to wait on startup to
 // send an additional notify to kamailio.
@@ -47,7 +47,7 @@ func init() {
 	flag.StringVar(&rpcPort, "p", "9998", "Port for kamailio's RPC service")
 	flag.StringVar(&kubeCfg, "kubecfg", "", "Location of kubecfg file (if not running inside k8s)")
 	flag.StringVar(&apiAddr, "api", "", "Address on which to run web API service.  Example ':8080'. (defaults to not run)")
-	flag.BoolVar(&legacyEndpointSlices, "legacy-endpointslices", false, "Use legacy v1beta1 EndpointSlices, for Kubernetes earlier than v1.21")
+	flag.BoolVar(&legacyEndpoints, "legacy-endpoints", false, "Use legacy Endpoints instead of EndpointSlices, for Kubernetes earlier than v1.21")
 }
 
 func main() {
@@ -101,7 +101,7 @@ func run() (err error) {
 	for _, v := range setDefinitions.list {
 		var ds sets.DispatcherSet
 
-		if legacyEndpointSlices {
+		if legacyEndpoints {
 			ds, err = sets.NewLegacyKubernetesSet(ctx, informerFactory, v.id, v.namespace, v.name, v.port)
 		} else {
 			ds, err = sets.NewKubernetesSet(ctx, informerFactory, v.id, v.namespace, v.name, v.port)

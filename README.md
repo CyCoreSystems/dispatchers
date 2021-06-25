@@ -146,3 +146,6 @@ With v2, we now use the more efficient EndpointSlices instead of Endpoints.
 While this will generally be an invisible change, your RBACs will likely need to
 be updated from v1.
 In particular, you will need access to the `endpointslices` resource in the `discovery.k8s.io` API Group.
+
+There is an option to retain the old behaviour:  `-legacy-endpoints`.  This will
+allow `dispatchers` to continue to work with older versions of Kuvbernetes.
