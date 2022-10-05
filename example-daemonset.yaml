@@ -62,8 +62,7 @@ spec:
           image: cycoresystems/rtpproxy
         - name: dispatchers
           image: cycoresystems/dispatchers
-          command:
-            - /app
+          args:
             - "-set"
             - default:asterisk=1
           volumeMounts:
