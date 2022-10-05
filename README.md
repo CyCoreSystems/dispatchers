@@ -48,8 +48,7 @@ spec:
            valueFrom:
              fieldRef:
                fieldPath: metadata.namespace
-      command:
-        - /app
+      args:
         - "-set"
         - asterisk=1
       volumeMounts:
